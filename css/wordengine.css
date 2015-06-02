@@ -1,0 +1,45 @@
+body, html {
+    font-family:sans-serif;
+    background-color:#fafafa;
+    margin-top:-5px;
+    padding:0;
+    height:100%;
+}
+
+.main {
+    margin-top:10px;
+}
+
+button, input {
+    width:100%;
+}
+
+#bigBar {
+    font-size:2em;
+    height:2em;
+}
+
+.row {
+    margin-top:30px;
+}
+
+.header {
+    margin-top:30px;
+    height:64px;
+    width:230px;
+    margin-left:auto;
+    margin-right:auto;
+}
+
+.header img {
+    width:230px;
+}
+
+.header p {
+    text-align:center;
+}
+
+.middle {
+    width:100%;
+    text-align:center;
+}
