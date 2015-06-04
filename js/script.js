@@ -221,7 +221,6 @@ function begin() {
     elapsed = endTime - startTime;
     console.log('Done (returned 42). Completed in ' + elapsed + 'ms (instant update will run every ' + ((elapsed + 1) * 2) + 'ms)\nRunning...');
     var urlOptions = getUrlKeys();
-    history.state = window.location.toString().split("?")[0];
     if (urlOptions.q) {
         document.getElementById('bigBar').value = urlOptions.q;
         oldWord = document.getElementById('bigBar').value;
