@@ -230,4 +230,4 @@ function begin() {
     handleInput();
     setInterval(handleInput, ((elapsed + 1) * 2));
 }
-begin();
+document.addEventListener("DOMContentLoaded", function() { begin(); });
