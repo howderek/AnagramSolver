@@ -187,10 +187,10 @@ function handleInput() {
         update();
         oldWord = document.getElementById('bigBar').value;
     } else if (document.getElementById('bigBar').value.match('-') && document.getElementById('bigBar').value !== oldWord) {
-        document.getElementById('results').innerHTML = panelHTML.replace('TITLE', 'Ready to run WordEngine on \'' + document.getElementById('bigBar').value + '\'').replace('CONTENT', 'Press ENTER to solve').replace('panel-default', 'panel-primary');
+        document.getElementById('results').innerHTML = panelHTML.replace('TITLE', 'Ready to fill in the blanks on \'' + document.getElementById('bigBar').value + '\'').replace('CONTENT', 'Press ENTER to solve').replace('panel-default', 'panel-primary');
         oldWord = document.getElementById('bigBar').value;
     } else if (document.getElementById('bigBar').value.match('!') && document.getElementById('bigBar').value !== oldWord) {
-        document.getElementById('results').innerHTML = panelHTML.replace('TITLE', 'Command Mode').replace('CONTENT', '<strong>!wordlist</strong>: displays wordlist<br><strong>!random</strong>: shows ten random words<br><strong>!colorful</strong>: makes WordEngine <em>a little</em> more colorful (toggles)').replace('panel-default', 'panel-primary');
+        document.getElementById('results').innerHTML = panelHTML.replace('TITLE', 'Command Mode').replace('CONTENT', '<strong>!wordlist</strong>: displays wordlist<br><strong>!random</strong>: shows ten random words<br><strong>!colorful</strong>: makes AnagramSolver <em>a little</em> more colorful (toggles)').replace('panel-default', 'panel-primary');
         oldWord = document.getElementById('bigBar').value;
     } else if (document.getElementById('bigBar').value.length < 1 && document.getElementById('bigBar').value !== oldWord) {
         oldWord = '';
