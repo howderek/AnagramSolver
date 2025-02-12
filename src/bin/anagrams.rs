@@ -1,8 +1,8 @@
 use anagramsolver::{AnagramSolver, CipherSolver, RotSolver, DEFAULT_WORDLIST};
-use std::collections::HashSet;
 use std::env;
 use std::fs;
-use std::io::Write;
+use std::io::{self, Write};
+use std::time::Instant;
 
 fn print_usage() {
     eprintln!("Usage: anagrams [OPTIONS] <input>");
@@ -21,10 +21,6 @@ fn load_wordlist(path: &str) -> Vec<String> {
         .map(|line| line.trim().to_string())
         .filter(|line| !line.is_empty())
         .collect()
-}
-
-fn load_wordset(path: &str) -> HashSet<String> {
-    load_wordlist(path).into_iter().collect()
 }
 
 fn main() {
@@ -95,6 +91,7 @@ fn main() {
             return;
         }
     };
+
     let mut wordlist = match wordlist_path {
         Some(path) => load_wordlist(&path),
         None => DEFAULT_WORDLIST
@@ -107,24 +104,58 @@ fn main() {
         .filter(|w| w.len() >= min_length)
         .collect();
 
+    // Common batching settings
+    const BATCH_SIZE: usize = 200;
+    let mut count: usize = 0;
+    let mut batch: Vec<String> = Vec::with_capacity(BATCH_SIZE);
+    let start = Instant::now();
+    let stdout = io::stdout();
+    let mut out_handle = stdout.lock();
+
     match cipher_type.to_lowercase().as_str() {
         "anagrams" => {
             let solver = AnagramSolver::new(wordlist);
             for solution in solver.iter(&input) {
-                if let Err(_) = writeln!(std::io::stdout(), "{}", solution.join(" ")) {
-                    std::process::exit(0);
+                // Join each solution vector into a single line.
+                batch.push(solution.join(" "));
+                count += 1;
+                if batch.len() >= BATCH_SIZE {
+                    writeln!(out_handle, "{}", batch.join("\n")).unwrap();
+                    batch.clear();
                 }
             }
         }
         "rot13" => {
             let solver = RotSolver::new(wordlist);
             for solution in solver.solve(&input) {
-                println!("{}", solution);
+                batch.push(solution);
+                count += 1;
+                if batch.len() >= BATCH_SIZE {
+                    writeln!(out_handle, "{}", batch.join("\n")).unwrap();
+                    batch.clear();
+                }
             }
         }
         other => {
             eprintln!("Unknown cipher type: {}", other);
             print_usage();
+            return;
         }
     }
+
+    // Flush any remaining lines.
+    if !batch.is_empty() {
+        writeln!(out_handle, "{}", batch.join("\n")).unwrap();
+    }
+    out_handle.flush().unwrap();
+
+    // Compute performance summary.
+    let elapsed = start.elapsed();
+    let secs = elapsed.as_secs_f64();
+    eprintln!(
+        "count:    {}\nelapsed:  {:.2?}\nrate:     {:.2} anagrams/s",
+        count,
+        elapsed,
+        if secs > 0.0 { count as f64 / secs } else { 0.0 }
+    );
 }

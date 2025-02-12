@@ -3,36 +3,40 @@
 struct LetterFreq([u8; 26]);
 
 impl LetterFreq {
-    // fn new() -> Self {
-    //     LetterFreq([0; 26])
-    // }
-
-    /// Compute the letter frequency for the given string (ignoring non‑letters).
+    /// Build a letter frequency from a string.
+    ///
+    /// This version iterates over bytes rather than chars,
+    /// avoiding Unicode overhead when only ASCII letters matter.
+    #[inline(always)]
     fn from_str(s: &str) -> Self {
-        let mut freq = [0; 26];
-        for c in s.chars() {
-            if c.is_ascii_alphabetic() {
-                let idx = (c.to_ascii_lowercase() as u8 - b'a') as usize;
-                freq[idx] += 1;
+        let mut freq = [0u8; 26];
+        for &b in s.as_bytes() {
+            if b'A' <= b && b <= b'Z' {
+                freq[(b - b'A') as usize] += 1;
+            } else if b'a' <= b && b <= b'z' {
+                freq[(b - b'a') as usize] += 1;
             }
         }
         LetterFreq(freq)
     }
 
-    /// Check whether there are no letters left.
+    /// Check whether no letters are left.
+    #[inline(always)]
     fn is_empty(&self) -> bool {
         self.0.iter().all(|&x| x == 0)
     }
 
-    /// Try to “subtract” the frequency of `other` from `self`.
-    /// Returns `Some(result)` if every letter in `other` is available.
+    /// Subtract the letter counts of `other` from `self`, returning the result if possible.
+    #[inline(always)]
     fn subtract(&self, other: &LetterFreq) -> Option<LetterFreq> {
-        let mut result = [0; 26];
+        let mut result = [0u8; 26];
         for i in 0..26 {
-            if self.0[i] < other.0[i] {
+            let a = self.0[i];
+            let b = other.0[i];
+            if a < b {
                 return None;
             }
-            result[i] = self.0[i] - other.0[i];
+            result[i] = a - b;
         }
         Some(LetterFreq(result))
     }
@@ -45,7 +49,8 @@ struct Word {
     freq: LetterFreq,
 }
 
-/// Filtering function that excludes solutions containing more than half short words
+/// Filter function that excludes solutions containing too many short words.
+#[inline(always)]
 fn is_valid_solution(solution: &[String]) -> bool {
     let short_word_count = solution.iter().filter(|w| w.len() <= 3).count();
     if solution.len() > 3 {
@@ -55,18 +60,13 @@ fn is_valid_solution(solution: &[String]) -> bool {
     }
 }
 
-/// The anagram solver.
-///
-/// It is constructed with a word list. If none is provided, a built‑in default
-/// dictionary is used.
+/// The anagram solver. (A built‑in dictionary or any word list may be used.)
 pub struct AnagramSolver {
     words: Vec<Word>,
 }
 
 impl AnagramSolver {
-    /// Create a new anagram solver.
-    ///
-    /// If `wordlist` is `None`, a built‑in default dictionary is used.
+    /// Create a new anagram solver from a word list.
     pub fn new(wordlist: Vec<String>) -> Self {
         let words: Vec<Word> = wordlist
             .into_iter()
@@ -80,10 +80,8 @@ impl AnagramSolver {
 
     /// Create an iterator that yields solutions one by one.
     ///
-    /// The candidate word list is filtered to only include words that can be used,
-    /// then sorted (by descending length so that longer words tend to appear earlier).
-    /// The iterator yields each complete solution (a vector of words) that satisfies
-    /// the filter (no more than three words of length 1 or 2).
+    /// The candidate word list is filtered (to those that can be used) and sorted so that
+    /// longer words tend to appear first.
     pub fn iter(&self, phrase: &str) -> AnagramIterator {
         let target = LetterFreq::from_str(phrase);
         let mut candidates: Vec<Word> = self
@@ -92,7 +90,8 @@ impl AnagramSolver {
             .filter(|word| target.subtract(&word.freq).is_some())
             .cloned()
             .collect();
-        // Sort candidates so that longer words come first; this helps yield “interesting” solutions earlier.
+
+        // Sort candidates so that longer words come first.
         candidates.sort_by(|a, b| {
             b.text
                 .len()
@@ -100,21 +99,11 @@ impl AnagramSolver {
                 .then_with(|| a.text.cmp(&b.text))
         });
 
-        // Initialize the stack with the starting state.
-        let initial_state = StackItem {
-            remaining: target,
-            solution: Vec::new(),
-            candidate_index: 0,
-        };
-
-        AnagramIterator {
-            candidates,
-            stack: vec![initial_state],
-        }
+        // Create a new iterator with an initial stack state.
+        AnagramIterator::new(candidates, target)
     }
 
-    /// Convenience method that collects all solutions into a vector.
-    /// (Warning: may run out of memory for very large searches.)
+    /// Convenience method that collects all valid solutions into a vector.
     pub fn solve(&self, phrase: &str) -> Vec<String> {
         self.iter(phrase)
             .filter_map(|solution| {
@@ -128,59 +117,75 @@ impl AnagramSolver {
     }
 }
 
-/// A frame representing one state of the DFS search.
-struct StackItem {
-    remaining: LetterFreq,
-    solution: Vec<String>,
-    candidate_index: usize,
-}
-
-/// An iterator that yields anagram solutions as vectors of words.
+/// An iterator that yields anagram solutions.
+///
+/// The DFS search is implemented iteratively using two vectors:
+///  - `stack`: Each element is a frame `(remaining, next_candidate_index)`
+///  - `current_solution`: A list of candidate indices (into `candidates`)
+/// that together (when looked up) form the current solution.
+///
+/// This approach avoids cloning the partial solution on each DFS step.
 pub struct AnagramIterator {
     candidates: Vec<Word>,
-    stack: Vec<StackItem>,
+    // Each stack frame holds: (remaining letters, next candidate index to try)
+    stack: Vec<(LetterFreq, usize)>,
+    // Holds the candidate indices of the current partial solution.
+    current_solution: Vec<usize>,
+}
+
+impl AnagramIterator {
+    fn new(candidates: Vec<Word>, target: LetterFreq) -> Self {
+        // Start with a single (root) frame.
+        AnagramIterator {
+            candidates,
+            stack: vec![(target, 0)],
+            current_solution: Vec::new(),
+        }
+    }
 }
 
 impl Iterator for AnagramIterator {
     type Item = Vec<String>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        // The iterator runs an explicit DFS.
-        while let Some(top) = self.stack.last_mut() {
-            // If there are no remaining letters, we have a complete solution.
-            if top.remaining.is_empty() {
-                // Pop this complete state off the stack.
-                let solution = self.stack.pop().unwrap().solution;
-                // Only yield the solution if it passes our filter.
+        // Continue the DFS until we either find a solution or exhaust the search.
+        while let Some((remaining, ref mut next_idx)) = self.stack.last_mut() {
+            // If no letters remain, we have a complete solution.
+            if remaining.is_empty() {
+                let solution: Vec<String> = self
+                    .current_solution
+                    .iter()
+                    .map(|&i| self.candidates[i].text.clone())
+                    .collect();
+                // Backtrack from this complete state.
+                self.stack.pop();
+                if !self.current_solution.is_empty() {
+                    self.current_solution.pop();
+                }
                 if is_valid_solution(&solution) {
                     return Some(solution);
                 }
                 continue;
             }
-
-            // If there are more candidates to try at this level…
-            if top.candidate_index < self.candidates.len() {
-                let index = top.candidate_index;
-                // Increment the candidate index for this state.
-                top.candidate_index += 1;
-                let candidate = &self.candidates[index];
-                if let Some(new_remaining) = top.remaining.subtract(&candidate.freq) {
-                    // Build a new solution state.
-                    let mut new_solution = top.solution.clone();
-                    new_solution.push(candidate.text.clone());
-                    let new_frame = StackItem {
-                        remaining: new_remaining,
-                        solution: new_solution,
-                        candidate_index: 0,
-                    };
-                    self.stack.push(new_frame);
+            // Otherwise, if there are more candidates to try in this state…
+            if *next_idx < self.candidates.len() {
+                let candidate_index = *next_idx;
+                *next_idx += 1; // move to the next candidate for this frame.
+                let candidate = &self.candidates[candidate_index];
+                if let Some(new_remaining) = remaining.subtract(&candidate.freq) {
+                    // Push candidate into the current solution and add a new state.
+                    self.current_solution.push(candidate_index);
+                    self.stack.push((new_remaining, 0));
                 }
             } else {
                 // No more candidates at this level; backtrack.
                 self.stack.pop();
+                if !self.current_solution.is_empty() {
+                    self.current_solution.pop();
+                }
             }
         }
-        // Exhausted the search.
+        // All search paths have been exhausted.
         None
     }
 }
